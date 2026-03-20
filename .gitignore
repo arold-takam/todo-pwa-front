@@ -30,8 +30,9 @@ dist/
 dev-dist/
 
 # Environnement
-.env.local
-.env.*.local
+.env.*
+.env.development
+.env.production
 
 # Editeurs
 .idea/
