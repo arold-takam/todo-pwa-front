@@ -1,0 +1,224 @@
+& .formUpdate {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100dvh;
+    background: conic-gradient(from 180deg at 50% 50%, #007b8a 0%, #00595e 100%);
+    overflow: hidden;
+
+    & .filter {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 89, 94, 0.6); /* overlay semi-transparent pour lisibilité */
+        backdrop-filter: blur(4px); /* effet verre dépoli */
+        overflow: hidden scroll;
+        scroll-behavior: smooth;
+
+        & form.updateTask {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+            width: 90%;
+            max-width: 40rem;
+            background: var(--smallWhite);
+            border-radius: 2rem;
+            padding: 3rem 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.4s ease;
+
+            & .title,
+            & textarea {
+                width: 100%;
+                background-color: var(--whiteColor);
+                border: 2px solid transparent;
+                border-radius: 2rem;
+                color: var(--mainColor);
+                font-size: x-large;
+                font-weight: bold;
+                outline: none;
+                padding: 1.2rem 1.5rem;
+                transition: all 0.3s ease;
+
+                &:focus {
+                    border-color: var(--secondaryColor);
+                    box-shadow: 0 0 0 4px rgba(0, 123, 138, 0.2);
+                }
+            }
+
+            & textarea {
+                height: 10rem;
+                resize: vertical;
+            }
+
+            & .dateTime {
+                display: flex;
+                align-items: center;
+                gap: 1.5rem;
+                width: 100%;
+
+                & input {
+                    flex: 1;
+                    background-color: var(--whiteColor);
+                    border: 2px solid transparent;
+                    border-radius: 2rem;
+                    color: var(--blackColor);
+                    font-size: x-large;
+                    font-weight: bold;
+                    outline: none;
+                    padding: 1rem;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+
+                    &:focus {
+                        border-color: var(--mainColor);
+                    }
+                }
+            }
+
+            & .status {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+                padding: 0 1rem;
+
+                & b {
+                    color: var(--secondaryColor);
+                    font-size: x-large;
+                    font-weight: bold;
+                }
+
+                & div {
+                    display: flex;
+                    align-items: center;
+                    gap: 1.5rem;
+
+                    & input[type="radio"] {
+                        width: 1.8rem;
+                        height: 1.8rem;
+                        accent-color: var(--mainColor);
+                        cursor: pointer;
+                    }
+
+                    & label {
+                        color: var(--secondaryColor);
+                        font-size: large;
+                        font-weight: 600;
+                        cursor: pointer;
+                    }
+                }
+            }
+
+            & .cta {
+                display: flex;
+                align-items: center;
+                gap: 2rem;
+                width: 100%;
+
+                & .back {
+                    flex: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: transparent;
+                    border: 2px solid var(--secondaryColor);
+                    border-radius: 2rem;
+                    color: var(--secondaryColor);
+                    font-size: x-large;
+                    font-weight: bold;
+                    padding: 1.2rem;
+                    text-decoration: none;
+                    transition: all 0.4s ease;
+
+                    &:hover {
+                        background: var(--secondaryColor);
+                        color: var(--mainColor);
+                        border-color: transparent;
+                    }
+                }
+
+                & .updateIt {
+                    flex: 2;
+                    background: var(--secondaryColor);
+                    border: none;
+                    border-radius: 2rem;
+                    color: var(--mainColor);
+                    font-size: x-large;
+                    font-weight: bold;
+                    padding: 1.2rem;
+                    cursor: pointer;
+                    transition: all 0.4s ease;
+
+                    &:hover {
+                        background: var(--mainColor);
+                        color: var(--secondaryColor);
+                        transform: translateY(-2px);
+                        box-shadow: 0 8px 20px rgba(0, 89, 94, 0.3);
+                    }
+                }
+            }
+        }
+
+        &::-webkit-scrollbar{
+            display: none;
+        }
+    }
+}
+
+/* ────────────────────────────────────────────────
+   RESPONSIVE (même seuil que Home et FormUpdate)
+──────────────────────────────────────────────── */
+@media (max-width: 928px) {
+    & .formUpdate {
+        & .filter {
+            & form.updateTask {
+                justify-content: space-between;
+                gap: 1rem;
+                max-width: 95%;
+                padding: 1rem;
+
+                & .title,
+                & textarea,
+                & .dateTime input {
+                    font-size: large;
+                    padding: 1rem;
+                }
+                & input, & .dateTime{
+                    height: 3rem;
+                }
+                & .dateTime {
+                    flex-direction: row;
+                    gap: 1rem;
+                    width: 100%;
+
+                    & input{
+                        width: 100%;
+                    }
+                }
+                & .status {
+                    flex-direction: column;
+                    gap: .5rem;
+                    align-items: flex-start;
+                }
+
+                & .cta {
+                    flex-direction: column-reverse;
+                    gap: 1.5rem;
+
+                    & .back,
+                    & .updateIt {
+                        width: 100%;
+                        padding: 1rem;
+                        font-size: large;
+                    }
+                }
+            }
+        }
+    }
+}
