@@ -28,11 +28,11 @@ const loadTasks = async (setTasks, setLoading, setError) => {
     }
 };
 
-export const syncPendingTasks = async (setTasks, setLoading, setError) => {
+const syncPendingTasks = async () => {
     console.log('🔄 Début synchronisation des tâches en attente...');
 
     const pending = await db.tasks
-        .filter(task => task.synced === false && typeof task.id === 'number')
+        .filter(task => task.synced === false)
         .toArray();
 
     console.log(`Tâches à synchroniser : ${pending.length}`);
@@ -41,15 +41,24 @@ export const syncPendingTasks = async (setTasks, setLoading, setError) => {
 
     for (const task of pending) {
         try {
-            const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
-            await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+            if (task.tempId) {
+                // Nouvelle tâche offline → créer sur serveur
+                console.log('Création serveur pour tempId', task.tempId);
+                const created = await TaskApiAdapter.saveTask(task);
+                await db.tasks.put({ ...created, synced: true, updatedAt: Date.now() });
+                await db.tasks.where('tempId').equals(task.tempId).delete();
+            } else if (typeof task.id === 'number') {
+                // Update tâche existante
+                console.log('Update serveur pour id', task.id);
+                const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
+                await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+            }
         } catch (err) {
-            console.error('Sync KO pour tâche', task.id, err);
+            console.error('Sync KO pour tâche', task.id || task.tempId, err);
         }
     }
 
-    // Recharge après sync
-    loadTasks(setTasks, setLoading, setError);
+    loadTasks();
 };
 
 export function useTasks() {
@@ -64,6 +73,7 @@ export function useTasks() {
     const addTask = async (taskData) => {
         const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
         const optimisticTask = { ...taskData, id: tempId, tempId, done: taskData.done || false, synced: false, updatedAt: Date.now() };
+        console.log('Add offline : synced=false posé pour tempId', tempId);
         setTasks(prev => [...prev, optimisticTask]);
         await db.tasks.add(optimisticTask);
 
@@ -114,6 +124,7 @@ export function useTasks() {
         if (!task) return;
 
         const updatedLocal = { ...task, ...updatedData, synced: false, updatedAt: Date.now() };
+        console.log('Update offline : synced=false posé pour tâche', id);
         setTasks(prev => prev.map(t => (t.id === id || t.tempId === id ? updatedLocal : t)));
         await db.tasks.put(updatedLocal);
 
