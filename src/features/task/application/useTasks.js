@@ -10,12 +10,23 @@ export function useTasks() {
 
     useEffect(() => {
         loadTasks();
+
+        // 1. Synchronisation quand on repasse online
         const handleOnline = () => {
-            console.log('Réseau revenu → synchronisation');
-            syncPendingTasks();
+            console.log('🌐 Réseau revenu → synchronisation automatique');
+            syncPendingTasks();  // ← APPELLE LA SYNC ICI
         };
         window.addEventListener('online', handleOnline);
-        return () => window.removeEventListener('online', handleOnline);
+
+        // 2. Optionnel : sync immédiat au montage si déjà online
+        if (navigator.onLine) {
+            console.log('Déjà online au montage → sync immédiate');
+            syncPendingTasks();
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+        };
     }, []);
 
     const loadTasks = async () => {
