@@ -3,10 +3,8 @@ import './App.css';
 import Home from "./features/task/ui/home/Home.jsx";
 import FormAdd from "./features/task/ui/formAdd/FormAdd.jsx";
 import FormUpdate from "./features/task/ui/formUpdate/FormUpdate.jsx";
-import {useOfflineSync} from "./hooks/useOfflineSync.js";
 
 function App() {
-    useOfflineSync();
 
   return (
     <Routes>

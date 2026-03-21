@@ -10,24 +10,7 @@ export function useTasks() {
 
     useEffect(() => {
         loadTasks();
-
-        // 1. Synchronisation quand on repasse online
-        const handleOnline = () => {
-            console.log('🌐 Réseau revenu → synchronisation automatique');
-            syncPendingTasks();  // ← APPELLE LA SYNC ICI
-        };
-        window.addEventListener('online', handleOnline);
-
-        // 2. Optionnel : sync immédiat au montage si déjà online
-        if (navigator.onLine) {
-            console.log('Déjà online au montage → sync immédiate');
-            syncPendingTasks();
-        }
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-        };
-    }, []);
+    }, []); // ← plus d'écouteurs online ici ! On les a déplacés dans offlineSync.js
 
     const loadTasks = async () => {
         setLoading(true);
@@ -46,7 +29,7 @@ export function useTasks() {
             setError('Mode hors-ligne – données locales');
             const localTasks = await db.tasks.toArray();
             setTasks(localTasks ?? []);
-            console.error('Error: ', err);
+            console.error('Error loading tasks:', err);
         } finally {
             setLoading(false);
         }
@@ -57,80 +40,90 @@ export function useTasks() {
         const optimisticTask = { ...taskData, id: tempId, tempId, done: taskData.done || false, synced: false, updatedAt: Date.now() };
         setTasks(prev => [...prev, optimisticTask]);
         await db.tasks.add(optimisticTask);
+
         try {
             const newTask = await TaskApiAdapter.saveTask(taskData);
             setTasks(prev => prev.map(t => (t.tempId === tempId ? { ...newTask, synced: true } : t)));
             await db.tasks.put({ ...newTask, synced: true, updatedAt: Date.now() });
             await db.tasks.where('tempId').equals(tempId).delete();
-        } catch (err) { console.error('Erreur ajout', err); }
+        } catch (err) {
+            console.error('Erreur ajout serveur:', err);
+            // La tâche reste locale avec synced: false → sera sync plus tard
+        }
     };
 
     const toggleTask = async (id) => {
         const task = tasks.find(t => t.id === id || t.tempId === id);
         if (!task) return;
+
         const updatedLocal = { ...task, done: !task.done, synced: false, updatedAt: Date.now() };
         setTasks(prev => prev.map(t => (t.id === id || t.tempId === id ? updatedLocal : t)));
         await db.tasks.put(updatedLocal);
+
         try {
             if (typeof id === 'number') {
                 const updatedServer = await TaskApiAdapter.toggleStatus(id);
                 setTasks(prev => prev.map(t => (t.id === id ? { ...updatedServer, synced: true } : t)));
                 await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
             }
-        } catch (err) { console.error('Toggle KO', err); }
+        } catch (err) {
+            console.error('Toggle serveur KO:', err);
+        }
     };
 
-    // --- LES NOUVELLES FONCTIONS ---
-
     const deleteTask = async (id) => {
-        // 1. UI Optimiste
         setTasks(prev => prev.filter(t => t.id !== id && t.tempId !== id));
-        // 2. Local
         await db.tasks.delete(id);
-        // 3. Serveur
+
         try {
             if (typeof id === 'number') {
                 await TaskApiAdapter.deleteTask(id);
             }
         } catch (err) {
-            console.error('Suppression serveur KO', err);
-            // On pourrait marquer la tâche comme "à supprimer" dans une table de log offline
+            console.error('Suppression serveur KO:', err);
         }
     };
 
     const updateTask = async (id, updatedData) => {
         const task = tasks.find(t => t.id === id || t.tempId === id);
         if (!task) return;
+
         const updatedLocal = { ...task, ...updatedData, synced: false, updatedAt: Date.now() };
         setTasks(prev => prev.map(t => (t.id === id || t.tempId === id ? updatedLocal : t)));
         await db.tasks.put(updatedLocal);
+
         try {
             if (typeof id === 'number') {
                 const updatedServer = await TaskApiAdapter.updateTask(id, updatedData);
                 setTasks(prev => prev.map(t => (t.id === id ? { ...updatedServer, synced: true } : t)));
                 await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
             }
-        } catch (err) { console.error('Update serveur KO', err); }
+        } catch (err) {
+            console.error('Update serveur KO:', err);
+        }
     };
 
     const syncPendingTasks = async () => {
         console.log('🔄 Début synchronisation des tâches en attente...');
-        const pending = await db.tasks.where('synced').equals(false).toArray();
+
+        const pending = await db.tasks
+            .filter(task => task.synced === false && typeof task.id === 'number')
+            .toArray();
+
         console.log(`Tâches à synchroniser : ${pending.length}`);
+
         if (pending.length === 0) return;
+
         for (const task of pending) {
             try {
-                if (task.tempId) {
-                    const created = await TaskApiAdapter.saveTask(task);
-                    await db.tasks.put({ ...created, synced: true });
-                    await db.tasks.where('tempId').equals(task.tempId).delete();
-                } else {
-                    await TaskApiAdapter.updateTask(task.id, task);
-                    await db.tasks.put({ ...task, synced: true });
-                }
-            } catch (err) { console.error('Sync KO', err); }
+                const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
+                await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+            } catch (err) {
+                console.error('Sync KO pour tâche', task.id, err);
+            }
         }
-        loadTasks();
+
+        loadTasks(); // Recharge depuis le serveur après sync
     };
 
     return {
@@ -139,8 +132,8 @@ export function useTasks() {
         error,
         addTask,
         toggleTask,
-        deleteTask, // <--- AJOUTÉ
-        updateTask, // <--- AJOUTÉ
+        deleteTask,
+        updateTask,
         syncPendingTasks
     };
 }
