@@ -6,6 +6,7 @@ import db from "../../../../db.js";
 
 // ← Déplace loadTasks ici, au top-level (elle n'a plus besoin d'être dans le hook)
 const loadTasks = async (setTasks, setLoading, setError) => {
+    if (!setTasks) return; // Sécurité
     setLoading(true);
     try {
         const apiTasks = await TaskApiAdapter.getAllTasks();
@@ -18,38 +19,42 @@ const loadTasks = async (setTasks, setLoading, setError) => {
             updatedAt: Date.now()
         })));
         setTasks(validated);
+        // eslint-disable-next-line no-unused-vars
     } catch (err) {
         setError('Mode hors-ligne – données locales');
         const localTasks = await db.tasks.toArray();
         setTasks(localTasks ?? []);
-        console.error('Error loading tasks:', err);
     } finally {
         setLoading(false);
     }
 };
 
 export const syncPendingTasks = async (setTasks, setLoading, setError) => {
-    console.log('🔄 Début synchronisation des tâches en attente...');
-
-    const pending = await db.tasks
-        .filter(task => task.synced === false && typeof task.id === 'number')
-        .toArray();
-
-    console.log(`Tâches à synchroniser : ${pending.length}`);
-
+    const pending = await db.tasks.filter(task => task.synced === false).toArray();
     if (pending.length === 0) return;
 
     for (const task of pending) {
         try {
-            const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
-            await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+            if (task.tempId) {
+                const created = await TaskApiAdapter.saveTask(task);
+                // Utilise une transaction pour éviter les doublons visuels
+                await db.transaction('rw', db.tasks, async () => {
+                    await db.tasks.where('tempId').equals(task.tempId).delete();
+                    await db.tasks.put({ ...created, synced: true, updatedAt: Date.now() });
+                });
+            } else if (typeof task.id === 'number') {
+                const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
+                await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+            }
         } catch (err) {
-            console.error('Sync KO pour tâche', task.id, err);
+            console.error('Sync KO', err);
         }
     }
 
-    // Recharge après sync
-    loadTasks(setTasks, setLoading, setError);
+    // On appelle loadTasks avec les setters reçus
+    if (setTasks) {
+        loadTasks(setTasks, setLoading, setError);
+    }
 };
 
 export function useTasks() {
@@ -61,9 +66,12 @@ export function useTasks() {
         loadTasks(setTasks, setLoading, setError);
     }, []);
 
+    const handleSync = () => {loadTasks(setTasks, setLoading, setError);}
+
     const addTask = async (taskData) => {
         const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
         const optimisticTask = { ...taskData, id: tempId, tempId, done: taskData.done || false, synced: false, updatedAt: Date.now() };
+        console.log('Add offline : synced=false posé pour tempId', tempId);
         setTasks(prev => [...prev, optimisticTask]);
         await db.tasks.add(optimisticTask);
 
@@ -114,6 +122,7 @@ export function useTasks() {
         if (!task) return;
 
         const updatedLocal = { ...task, ...updatedData, synced: false, updatedAt: Date.now() };
+        console.log('Update offline : synced=false posé pour tâche', id);
         setTasks(prev => prev.map(t => (t.id === id || t.tempId === id ? updatedLocal : t)));
         await db.tasks.put(updatedLocal);
 
@@ -136,6 +145,6 @@ export function useTasks() {
         toggleTask,
         deleteTask,
         updateTask,
-        syncPendingTasks
+        syncPendingTasks: handleSync
     };
 }
