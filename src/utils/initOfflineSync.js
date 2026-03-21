@@ -1,8 +1,5 @@
-// src/utils/offlineSync.js
-// Ce fichier n'est PAS un hook React, c'est un utilitaire global
-// Il est appelé UNE SEULE FOIS au démarrage de l'application
-
-import { syncPendingTasks } from '../features/task/application/useTasks.js'; // ajuste le chemin si besoin
+// src/utils/initOfflineSync.js
+import { syncPendingTasks } from '../features/task/application/useTasks.js';  // ← chemin correct
 
 let isInitialized = false;
 
@@ -26,7 +23,6 @@ export function initOfflineSync() {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    // Sync immédiate si déjà online au démarrage
     if (navigator.onLine) {
         console.log('Déjà online au démarrage → sync immédiate');
         syncPendingTasks();

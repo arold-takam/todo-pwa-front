@@ -1,7 +1,56 @@
-// src/application/useTasks.js
+// src/features/task/application/useTasks.js
+
 import { useState, useEffect } from 'react';
 import { TaskApiAdapter } from '../infrastructure/TaskApiAdapter.js';
 import db from "../../../../db.js";
+
+// ← Déplace loadTasks ici, au top-level (elle n'a plus besoin d'être dans le hook)
+const loadTasks = async (setTasks, setLoading, setError) => {
+    setLoading(true);
+    try {
+        const apiTasks = await TaskApiAdapter.getAllTasks();
+        const validated = apiTasks || [];
+        await db.tasks.clear();
+        await db.tasks.bulkPut(validated.map(t => ({
+            ...t,
+            done: t.done ?? t.isDone ?? false,
+            synced: true,
+            updatedAt: Date.now()
+        })));
+        setTasks(validated);
+    } catch (err) {
+        setError('Mode hors-ligne – données locales');
+        const localTasks = await db.tasks.toArray();
+        setTasks(localTasks ?? []);
+        console.error('Error loading tasks:', err);
+    } finally {
+        setLoading(false);
+    }
+};
+
+export const syncPendingTasks = async (setTasks, setLoading, setError) => {
+    console.log('🔄 Début synchronisation des tâches en attente...');
+
+    const pending = await db.tasks
+        .filter(task => task.synced === false && typeof task.id === 'number')
+        .toArray();
+
+    console.log(`Tâches à synchroniser : ${pending.length}`);
+
+    if (pending.length === 0) return;
+
+    for (const task of pending) {
+        try {
+            const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
+            await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+        } catch (err) {
+            console.error('Sync KO pour tâche', task.id, err);
+        }
+    }
+
+    // Recharge après sync
+    loadTasks(setTasks, setLoading, setError);
+};
 
 export function useTasks() {
     const [tasks, setTasks] = useState([]);
@@ -9,31 +58,8 @@ export function useTasks() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        loadTasks();
-    }, []); // ← plus d'écouteurs online ici ! On les a déplacés dans offlineSync.js
-
-    const loadTasks = async () => {
-        setLoading(true);
-        try {
-            const apiTasks = await TaskApiAdapter.getAllTasks();
-            const validated = apiTasks || [];
-            await db.tasks.clear();
-            await db.tasks.bulkPut(validated.map(t => ({
-                ...t,
-                done: t.done ?? t.isDone ?? false,
-                synced: true,
-                updatedAt: Date.now()
-            })));
-            setTasks(validated);
-        } catch (err) {
-            setError('Mode hors-ligne – données locales');
-            const localTasks = await db.tasks.toArray();
-            setTasks(localTasks ?? []);
-            console.error('Error loading tasks:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+        loadTasks(setTasks, setLoading, setError);
+    }, []);
 
     const addTask = async (taskData) => {
         const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
@@ -48,7 +74,6 @@ export function useTasks() {
             await db.tasks.where('tempId').equals(tempId).delete();
         } catch (err) {
             console.error('Erreur ajout serveur:', err);
-            // La tâche reste locale avec synced: false → sera sync plus tard
         }
     };
 
@@ -101,29 +126,6 @@ export function useTasks() {
         } catch (err) {
             console.error('Update serveur KO:', err);
         }
-    };
-
-    const syncPendingTasks = async () => {
-        console.log('🔄 Début synchronisation des tâches en attente...');
-
-        const pending = await db.tasks
-            .filter(task => task.synced === false && typeof task.id === 'number')
-            .toArray();
-
-        console.log(`Tâches à synchroniser : ${pending.length}`);
-
-        if (pending.length === 0) return;
-
-        for (const task of pending) {
-            try {
-                const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
-                await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
-            } catch (err) {
-                console.error('Sync KO pour tâche', task.id, err);
-            }
-        }
-
-        loadTasks(); // Recharge depuis le serveur après sync
     };
 
     return {
