@@ -114,7 +114,9 @@ export function useTasks() {
     };
 
     const syncPendingTasks = async () => {
+        console.log('🔄 Début synchronisation des tâches en attente...');
         const pending = await db.tasks.where('synced').equals(false).toArray();
+        console.log(`Tâches à synchroniser : ${pending.length}`);
         if (pending.length === 0) return;
         for (const task of pending) {
             try {
