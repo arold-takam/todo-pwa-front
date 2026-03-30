@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react';
 import { TaskApiAdapter } from '../infrastructure/TaskApiAdapter.js';
 import db from "../../../../db.js";
 
-// ← Déplace loadTasks ici, au top-level (elle n'a plus besoin d'être dans le hook)
 const loadTasks = async (setTasks, setLoading, setError) => {
-    if (!setTasks) return; // Sécurité
+    if (!setTasks) return;
     setLoading(true);
     try {
         const apiTasks = await TaskApiAdapter.getAllTasks();
@@ -19,8 +18,8 @@ const loadTasks = async (setTasks, setLoading, setError) => {
             updatedAt: Date.now()
         })));
         setTasks(validated);
-        // eslint-disable-next-line no-unused-vars
     } catch (err) {
+        console.error('Chargement API KO, fallback local', err);
         setError('Mode hors-ligne – données locales');
         const localTasks = await db.tasks.toArray();
         setTasks(localTasks ?? []);
@@ -35,25 +34,41 @@ export const syncPendingTasks = async (setTasks, setLoading, setError) => {
 
     for (const task of pending) {
         try {
+            // Cas 1 : nouvelle tâche créée offline
             if (task.tempId) {
                 const created = await TaskApiAdapter.saveTask(task);
-                // Utilise une transaction pour éviter les doublons visuels
                 await db.transaction('rw', db.tasks, async () => {
                     await db.tasks.where('tempId').equals(task.tempId).delete();
                     await db.tasks.put({ ...created, synced: true, updatedAt: Date.now() });
                 });
+
+                // Cas 2 : toggle offline (PATCH /validate)
+            } else if (task.pendingAction === 'toggle' && typeof task.id === 'number') {
+                const updatedServer = await TaskApiAdapter.toggleStatus(task.id);
+                await db.tasks.put({
+                    ...updatedServer,
+                    synced: true,
+                    pendingAction: null,
+                    updatedAt: Date.now()
+                });
+
+                // Cas 3 : update classique offline (PUT /update)
             } else if (typeof task.id === 'number') {
                 const updatedServer = await TaskApiAdapter.updateTask(task.id, task);
-                await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+                await db.tasks.put({
+                    ...updatedServer,
+                    synced: true,
+                    pendingAction: null,
+                    updatedAt: Date.now()
+                });
             }
         } catch (err) {
-            console.error('Sync KO', err);
+            console.error('Sync KO pour tâche', task.id ?? task.tempId, err);
         }
     }
 
-    // On appelle loadTasks avec les setters reçus
-    if (setTasks) {
-        loadTasks(setTasks, setLoading, setError);
+    if (setTasks && setLoading && setError) {
+        await loadTasks(setTasks, setLoading, setError);
     }
 };
 
@@ -66,19 +81,28 @@ export function useTasks() {
         loadTasks(setTasks, setLoading, setError);
     }, []);
 
-    const handleSync = () => {loadTasks(setTasks, setLoading, setError);}
+    const handleSync = () => {
+        loadTasks(setTasks, setLoading, setError);
+    };
 
     const addTask = async (taskData) => {
         const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
-        const optimisticTask = { ...taskData, id: tempId, tempId, done: taskData.done || false, synced: false, updatedAt: Date.now() };
-        console.log('Add offline : synced=false posé pour tempId', tempId);
+        const optimisticTask = {
+            ...taskData,
+            id: tempId,
+            tempId,
+            done: taskData.done || false,
+            synced: false,
+            pendingAction: 'create',
+            updatedAt: Date.now()
+        };
         setTasks(prev => [...prev, optimisticTask]);
         await db.tasks.add(optimisticTask);
 
         try {
             const newTask = await TaskApiAdapter.saveTask(taskData);
             setTasks(prev => prev.map(t => (t.tempId === tempId ? { ...newTask, synced: true } : t)));
-            await db.tasks.put({ ...newTask, synced: true, updatedAt: Date.now() });
+            await db.tasks.put({ ...newTask, synced: true, pendingAction: null, updatedAt: Date.now() });
             await db.tasks.where('tempId').equals(tempId).delete();
         } catch (err) {
             console.error('Erreur ajout serveur:', err);
@@ -89,7 +113,13 @@ export function useTasks() {
         const task = tasks.find(t => t.id === id || t.tempId === id);
         if (!task) return;
 
-        const updatedLocal = { ...task, done: !task.done, synced: false, updatedAt: Date.now() };
+        const updatedLocal = {
+            ...task,
+            done: !task.done,
+            synced: false,
+            pendingAction: 'toggle',   // ← marqueur pour la sync
+            updatedAt: Date.now()
+        };
         setTasks(prev => prev.map(t => (t.id === id || t.tempId === id ? updatedLocal : t)));
         await db.tasks.put(updatedLocal);
 
@@ -97,10 +127,10 @@ export function useTasks() {
             if (typeof id === 'number') {
                 const updatedServer = await TaskApiAdapter.toggleStatus(id);
                 setTasks(prev => prev.map(t => (t.id === id ? { ...updatedServer, synced: true } : t)));
-                await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+                await db.tasks.put({ ...updatedServer, synced: true, pendingAction: null, updatedAt: Date.now() });
             }
         } catch (err) {
-            console.error('Toggle serveur KO:', err);
+            console.error('Toggle serveur KO (sera rejoué à la sync):', err);
         }
     };
 
@@ -114,6 +144,9 @@ export function useTasks() {
             }
         } catch (err) {
             console.error('Suppression serveur KO:', err);
+            // Note : le delete offline n'est pas rejoué car la tâche
+            // est déjà supprimée localement. À améliorer si besoin
+            // avec une table "pending_deletes" dans Dexie.
         }
     };
 
@@ -121,8 +154,13 @@ export function useTasks() {
         const task = tasks.find(t => t.id === id || t.tempId === id);
         if (!task) return;
 
-        const updatedLocal = { ...task, ...updatedData, synced: false, updatedAt: Date.now() };
-        console.log('Update offline : synced=false posé pour tâche', id);
+        const updatedLocal = {
+            ...task,
+            ...updatedData,
+            synced: false,
+            pendingAction: 'update',   // ← marqueur pour la sync
+            updatedAt: Date.now()
+        };
         setTasks(prev => prev.map(t => (t.id === id || t.tempId === id ? updatedLocal : t)));
         await db.tasks.put(updatedLocal);
 
@@ -130,10 +168,10 @@ export function useTasks() {
             if (typeof id === 'number') {
                 const updatedServer = await TaskApiAdapter.updateTask(id, updatedData);
                 setTasks(prev => prev.map(t => (t.id === id ? { ...updatedServer, synced: true } : t)));
-                await db.tasks.put({ ...updatedServer, synced: true, updatedAt: Date.now() });
+                await db.tasks.put({ ...updatedServer, synced: true, pendingAction: null, updatedAt: Date.now() });
             }
         } catch (err) {
-            console.error('Update serveur KO:', err);
+            console.error('Update serveur KO (sera rejoué à la sync):', err);
         }
     };
 
@@ -141,10 +179,14 @@ export function useTasks() {
         tasks: tasks ?? [],
         loading,
         error,
+        setTasks,
+        setLoading,
+        setError,
         addTask,
         toggleTask,
         deleteTask,
         updateTask,
-        syncPendingTasks: handleSync
+        syncPendingTasks: handleSync,
+        fetchTasks: handleSync,
     };
 }

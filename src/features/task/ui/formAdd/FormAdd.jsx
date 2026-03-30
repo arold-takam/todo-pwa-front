@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './FormAdd.css';
-import { useTasks } from '../../application/useTasks'; // adapte chemin
+import { useTaskContext } from '../../../../context/TaskContext.jsx';
 
 export default function FormAdd() {
-    const { addTask } = useTasks();
+    const { addTask } = useTaskContext();
     const navigate = useNavigate();
 
     const [title, setTitle] = useState('');
@@ -15,12 +15,8 @@ export default function FormAdd() {
 
     const formatTimeForSubmit = (timeStr) => {
         if (!timeStr) return null;
-
-        // timeStr vient de <input type="time"> → toujours "HH:mm" (ex: "14:30")
-        // On force toujours le format attendu par le back : "HH:mm:00"
         const [hours, minutes] = timeStr.split(':');
         if (!hours || !minutes) return null;
-
         return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00`;
     };
 
@@ -31,7 +27,7 @@ export default function FormAdd() {
             title: title.trim(),
             details: details.trim(),
             date: date || null,
-            time: formatTimeForSubmit(time),  // ← utilise la fonction corrigée
+            time: formatTimeForSubmit(time),
             done: isDone,
         };
 
