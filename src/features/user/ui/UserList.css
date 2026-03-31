@@ -1,0 +1,192 @@
+.userList {
+    max-width: 680px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.ul-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.ul-header h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #00595e;
+    margin: 0;
+}
+
+.ul-btn-add {
+    background: #00595e;
+    color: white;
+    border: none;
+    padding: 0.5rem 1.2rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.ul-btn-add:hover { background: #007a82; }
+
+/* ── Liste ── */
+.ul-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.ul-item {
+    background: #f8fafa;
+    border: 1px solid #d0e8e8;
+    border-radius: 10px;
+    padding: 0.9rem 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.ul-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.ul-username {
+    font-weight: 700;
+    color: #00595e;
+    font-size: 1rem;
+}
+.ul-email { font-size: 0.85rem; color: #555; }
+.ul-id { font-size: 0.75rem; color: #999; }
+
+.ul-item-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.ul-btn-edit {
+    background: transparent;
+    border: 1.5px solid #00595e;
+    color: #00595e;
+    padding: 0.35rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.ul-btn-edit:hover { background: #00595e; color: white; }
+
+.ul-btn-delete {
+    background: transparent;
+    border: 1.5px solid #c0392b;
+    color: #c0392b;
+    padding: 0.35rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.ul-btn-delete:hover { background: #c0392b; color: white; }
+
+/* ── Overlay / Formulaire ── */
+.ul-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+}
+
+.ul-form {
+    background: white;
+    border-radius: 14px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+
+.ul-form h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.2rem;
+    color: #00595e;
+}
+
+.ul-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #444;
+}
+
+.ul-form input {
+    border: 1.5px solid #ccc;
+    border-radius: 7px;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.ul-form input:focus { border-color: #00595e; }
+
+.ul-hint { font-weight: 400; color: #999; font-size: 0.78rem; }
+
+.ul-form-error {
+    background: #fdecea;
+    color: #c0392b;
+    padding: 0.5rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.ul-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.ul-btn-cancel {
+    background: transparent;
+    border: 1.5px solid #ccc;
+    color: #666;
+    padding: 0.5rem 1.1rem;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.ul-btn-cancel:hover { border-color: #999; }
+
+.ul-btn-save {
+    background: #00595e;
+    color: white;
+    border: none;
+    padding: 0.5rem 1.4rem;
+    border-radius: 7px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.ul-btn-save:hover { background: #007a82; }
+
+/* ── États ── */
+.ul-loading, .ul-empty { text-align: center; color: #888; padding: 2rem; }
+.ul-error { text-align: center; color: #c0392b; padding: 2rem; }
