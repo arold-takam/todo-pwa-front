@@ -1,48 +1,54 @@
 # ToDo PWA — TeckIt
 
-> Application de gestion de tâches **offline-first** — React 19 + Spring Boot 3 (Modulith) + PostgreSQL + Docker + CI/CD GitHub Actions + Monitoring (Prometheus / Grafana / Loki / Tempo)
+> Application de gestion de tâches **offline-first** — React 19 + Spring Boot 3 (Modulith) + PostgreSQL  
+> Stack DevOps : Docker · GitHub Actions · Netlify · Render · Prometheus · Grafana · Loki · Tempo
 
 ---
 
-## 🗂️ Structure du dépôt
+## 🗂️ Structure des dépôts
+
+Ce projet est découpé en **2 dépôts GitHub séparés** :
+
+| Dépôt | Contenu | CI/CD |
+|-------|---------|-------|
+| `todo-pwa-back` | Spring Boot multi-module Maven | GitHub Actions → Docker Hub → Render |
+| `todo-pwa-front` | React + Vite + PWA | GitHub Actions → Netlify |
 
 ```
-todo_pwa/
-├── toDoApp/                          # Back-end Spring Boot (multi-module Maven)
-│   ├── pom.xml                       # POM parent
+todo_pwa/                          ← racine locale (pas un repo Git)
+├── toDoApp/                       ← clone de todo-pwa-back
+│   ├── pom.xml                    # POM parent Maven
 │   ├── Dockerfile
-│   ├── application/                  # Module de démarrage (config, security, bootstrap)
-│   ├── common/                       # Exceptions, ApiResponse, logging partagés
-│   ├── module-user/                  # Domaine utilisateur (CRUD + events)
-│   └── module-task/                  # Domaine tâche (CRUD + listener events)
-├── front/                            # Front-end React + Vite + PWA
+│   ├── application/               # Module boot (config, security, bootstrap)
+│   ├── common/                    # Exceptions, ApiResponse partagés
+│   ├── module-user/               # Domaine utilisateur
+│   └── module-task/               # Domaine tâche
+├── front/                         ← clone de todo-pwa-front
 │   ├── Dockerfile
 │   ├── nginx.conf
-│   ├── src/
-│   │   ├── features/task/            # Architecture hexagonale (domain / infra / app / ui)
-│   │   ├── features/user/            # Architecture hexagonale utilisateur
-│   │   ├── context/                  # Contextes React globaux
-│   │   └── utils/                   # Helpers (offline sync)
-│   └── vite.config.js
-├── monitoring/                       # Configs Prometheus / Grafana / Loki / Promtail / Tempo
-├── docker-compose.yml                # Stack applicatif (back + front + postgres)
-├── docker-compose.monitoring.yml     # Stack monitoring
-├── docker-compose.sonar.yml          # SonarQube
-└── .github/workflows/               # CI/CD GitHub Actions
-    ├── ci-back.yml
-    └── ci-front.yml
+│   ├── db.js                      # Dexie IndexedDB (offline store)
+│   ├── vite.config.js
+│   └── src/
+│       ├── features/task/         # Architecture hexagonale tâches
+│       ├── features/user/         # Architecture hexagonale users
+│       ├── context/               # Contextes React globaux
+│       └── utils/                 # initOfflineSync
+├── monitoring/                    # Configs Prometheus/Grafana/Loki/Promtail/Tempo
+├── docker-compose.yml
+├── docker-compose.monitoring.yml
+└── docker-compose.sonar.yml
 ```
 
 ---
 
 ## ⚙️ Prérequis
 
-| Outil | Version minimale |
-|-------|-----------------|
+| Outil | Version |
+|-------|---------|
 | Docker + Docker Compose | 24+ |
-| Java (pour dev local back) | 21 |
-| Node.js (pour dev local front) | 20 |
-| Maven (pour dev local back) | 3.9 |
+| Java | 21 |
+| Node.js | 20 |
+| Maven | 3.9 |
 
 ---
 
@@ -53,69 +59,50 @@ todo_pwa/
 ```bash
 cd toDoApp
 mvn spring-boot:run -Dspring-boot.run.profiles=dev
-# API disponible sur http://localhost:8080/api/v1
-# Swagger : http://localhost:8080/api/v1/swagger-ui.html
-# H2 console : http://localhost:8080/api/v1/h2-console
+# API      → http://localhost:8080/api/v1
+# Swagger  → http://localhost:8080/api/v1/swagger-ui.html
+# H2       → http://localhost:8080/api/v1/h2-console
 ```
 
 ### Dev local — Front seul
 
 ```bash
-cd front
-npm install
-npm run dev
-# App disponible sur http://localhost:5173
-# Pointe vers http://localhost:8080/api/v1 (via .env.development)
+cd front && npm install && npm run dev
+# App → http://localhost:5173
 ```
 
-### Dev complet — Docker Compose (recommandé)
+### Stack complète Docker
 
 ```bash
-# Build et démarrage des 3 services (postgres + back + front)
 docker compose up --build
+# Front   → http://localhost:3000
+# Back    → http://localhost:8080/api/v1
+# Swagger → http://localhost:8080/api/v1/swagger-ui.html
+# Postgres → localhost:5433
 
-# URLs :
-# Front PWA   → http://localhost:3000
-# Back API    → http://localhost:8080/api/v1
-# Swagger     → http://localhost:8080/api/v1/swagger-ui.html
-# Postgres    → localhost:5433 (user: postgres / mdp: postgres / db: todoApp_db)
-
-# Stopper
-docker compose down
-
-# Reset complet (supprime les données)
-docker compose down -v
+docker compose down        # Arrêt propre
+docker compose down -v     # Arrêt + reset DB
 ```
 
 ### Monitoring local
 
 ```bash
 docker compose -f docker-compose.monitoring.yml up -d
-
-# Grafana    → http://localhost:3001  (admin / admin)
+# Grafana    → http://localhost:3001  (admin/admin)
 # Prometheus → http://localhost:9090
 # Loki       → http://localhost:3100
 # Tempo      → http://localhost:3200
-
-# Dashboards recommandés à importer dans Grafana :
-# JVM Spring Boot  → ID: 4701
-# Spring Boot 3.x  → ID: 19004
-# Loki Logs        → ID: 13639
+# Dashboards à importer : 4701 (JVM), 19004 (Spring Boot 3), 13639 (Loki)
 ```
 
 ### SonarQube local
 
 ```bash
 docker compose -f docker-compose.sonar.yml up -d
-# → http://localhost:9000 (admin / admin → changer au premier login)
+# → http://localhost:9000  (admin/admin)
 
-# Analyser le back
-cd toDoApp
-mvn sonar:sonar -Dsonar.token=TON_TOKEN
-
-# Analyser le front
-cd front
-npx sonar-scanner -Dsonar.token=TON_TOKEN -Dsonar.host.url=http://localhost:9000
+cd toDoApp && mvn sonar:sonar -Dsonar.token=TON_TOKEN
+cd front && npx sonar-scanner -Dsonar.token=TON_TOKEN -Dsonar.host.url=http://localhost:9000
 ```
 
 ---
@@ -124,47 +111,56 @@ npx sonar-scanner -Dsonar.token=TON_TOKEN -Dsonar.host.url=http://localhost:9000
 
 ### Back — profil `preprod` (Docker local)
 
-| Variable | Valeur par défaut | Description |
-|----------|------------------|-------------|
-| `SPRING_PROFILES_ACTIVE` | `preprod` | Profil Spring actif |
-| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://postgres:5432/todoApp_db` | URL de la DB |
-| `SPRING_DATASOURCE_USERNAME` | `postgres` | User DB |
-| `SPRING_DATASOURCE_PASSWORD` | `postgres` | Mot de passe DB |
+| Variable | Valeur par défaut |
+|----------|------------------|
+| `SPRING_PROFILES_ACTIVE` | `preprod` |
+| `SPRING_DATASOURCE_URL` | `jdbc:postgresql://postgres:5432/todoApp_db` |
+| `SPRING_DATASOURCE_USERNAME` | `postgres` |
+| `SPRING_DATASOURCE_PASSWORD` | `postgres` |
 
 ### Back — profil `prod` (Render)
 
 | Variable | Description |
 |----------|-------------|
-| `SPRING_PROFILES_ACTIVE` | Mettre `prod` |
-| `SPRING_DATASOURCE_URL` | URL fournie par Render PostgreSQL |
-| `SPRING_DATASOURCE_USERNAME` | User fourni par Render |
-| `SPRING_DATASOURCE_PASSWORD` | Mot de passe fourni par Render |
+| `SPRING_PROFILES_ACTIVE` | `prod` |
+| `SPRING_DATASOURCE_URL` | URL Neon/Render PostgreSQL |
+| `SPRING_DATASOURCE_USERNAME` | User DB prod |
+| `SPRING_DATASOURCE_PASSWORD` | Mot de passe DB prod |
 | `PORT` | Injecté automatiquement par Render |
 
-### Front
-
-| Variable | Dev | Prod |
-|----------|-----|------|
-| `VITE_API_BASE_URL` | `http://localhost:8080/api/v1` | `/api/v1` (proxy nginx) ou URL Render |
+> ⚠️ **Base de données Render Free** expire après 30 jours.  
+> **Migrer vers Neon (gratuit, permanent)** :  
+> 1. Créer un compte sur [neon.tech](https://neon.tech)  
+> 2. Créer un projet → copier la connection string  
+> 3. Render → Environment → `SPRING_DATASOURCE_URL` = `jdbc:postgresql://ep-xxx.neon.tech/neondb?sslmode=require`  
+> 4. Redéployer
 
 ---
 
-## 🔐 Secrets GitHub Actions à configurer
+## 🔐 Secrets GitHub Actions
 
-Aller dans : **Settings → Secrets and variables → Actions**
+### Repo `todo-pwa-back`
 
 | Secret | Description |
 |--------|-------------|
-| `DOCKERHUB_USERNAME` | Ton username Docker Hub |
+| `DOCKERHUB_USERNAME` | Username Docker Hub |
 | `DOCKERHUB_TOKEN` | Token Docker Hub (Account → Security) |
-| `SONAR_HOST_URL` | URL SonarQube (ex: `https://sonarcloud.io`) |
-| `SONAR_TOKEN_BACK` | Token projet back généré dans SonarQube |
-| `SONAR_TOKEN_FRONT` | Token projet front généré dans SonarQube |
+| `SONAR_HOST_URL` | URL SonarQube — optionnel (skip si absent) |
+| `SONAR_TOKEN_BACK` | Token projet back — optionnel |
 | `RENDER_API_KEY` | Render → Account Settings → API Keys |
-| `RENDER_SERVICE_ID_BACK` | ID du service back sur Render (commence par `srv-`) |
+| `RENDER_SERVICE_ID_BACK` | ID service Render (commence par `srv-`) |
+
+### Repo `todo-pwa-front`
+
+| Secret | Description |
+|--------|-------------|
+| `DOCKERHUB_USERNAME` | Username Docker Hub |
+| `DOCKERHUB_TOKEN` | Token Docker Hub |
+| `SONAR_HOST_URL` | URL SonarQube — optionnel |
+| `SONAR_TOKEN_FRONT` | Token projet front — optionnel |
 | `NETLIFY_AUTH_TOKEN` | Netlify → User Settings → Personal access tokens |
 | `NETLIFY_SITE_ID` | Netlify → Site settings → Site ID |
-| `VITE_API_BASE_URL_PROD` | URL complète du back Render, ex: `https://todo-back.onrender.com/api/v1` |
+| `VITE_API_BASE_URL_PROD` | ex: `https://todo-back.onrender.com/api/v1` |
 
 ---
 
@@ -173,179 +169,106 @@ Aller dans : **Settings → Secrets and variables → Actions**
 ### Back — Spring Boot Modulith
 
 ```
-application (module de démarrage)
-    ↓ dépend de
-module-user ←──events──→ module-task
-    ↓                         ↓
-common (partagé)          common (partagé)
-    ↓                         ↓
-          PostgreSQL
+application (bootstrap, config, security)
+    ↓ via interfaces publiques (shared/) uniquement
+module-user ──── UserCreatedEvent / UserDeletedEvent ───→ module-task
+    ↓                                                          ↓
+              common (ApiResponse, EntityNotFoundException)
+                              ↓
+                         PostgreSQL
 ```
 
-- Les modules communiquent via **Spring ApplicationEvents** (UserCreatedEvent, UserDeletedEvent)
-- Pas d'appels directs entre modules sauf via `shared/` (UserSharedService)
-- Profils : `dev` (H2 en mémoire) / `preprod` (PostgreSQL Docker) / `prod` (PostgreSQL Render)
+**Règle des frontières** : jamais d'accès aux packages `internal` depuis un autre module. Uniquement via `shared/`.
 
 ### Front — Architecture hexagonale
 
 ```
-src/features/task/
-├── domain/          # Entités métier pures (Task.js)
-├── infrastructure/  # Appels API (TaskApiAdapter, apiClient)
-├── application/     # Logique applicative (useTasks hook)
-└── ui/              # Composants React (Home, FormAdd, FormUpdate)
+features/task/
+├── domain/       Task.js
+├── infrastructure/ TaskApiAdapter.js, apiClient.js
+├── application/  useTasks.js (hook + sync offline)
+└── ui/           Home, FormAdd, FormUpdate
 
-src/features/user/
-├── domain/
-├── infrastructure/
-├── application/
-└── ui/              # (UserList, UserForm)
+features/user/
+├── domain/       User.js
+├── application/  useUsers.js
+└── ui/           UserList.jsx
 ```
 
 ### PWA Offline-first
 
 ```
-Action utilisateur
-    ↓
-Mise à jour optimiste (état local + Dexie/IndexedDB)
-    ↓
-Tentative API → succès : marque synced=true
-                 échec  : reste synced=false (pendingAction marqué)
-    ↓
-Retour online → CustomEvent 'app:sync-requested'
-    ↓
-TaskContext rejoue toutes les tâches pending
+Action → Optimiste local (Dexie) → Tentative API
+                                     ✅ synced=true
+                                     ❌ synced=false, pendingAction marqué
+Retour online → CustomEvent → TaskContext → syncPendingTasks() → rechargement UI
 ```
 
 ---
 
 ## 📡 API Endpoints
 
-### Users — `/api/v1/user`
+Base URL : `http://localhost:8080/api/v1`
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `POST` | `/save` | Créer un utilisateur |
-| `GET` | `/find/all` | Lister tous les utilisateurs |
-| `GET` | `/find/byId/{id}` | Trouver par ID |
-| `GET` | `/find/byUsername?username=X` | Trouver par username |
-| `PUT` | `/update/{id}` | Modifier |
-| `DELETE` | `/delete/{id}` | Supprimer (cascade sur les tâches) |
+### Users — `/user`
+`POST /save` · `GET /find/all` · `GET /find/byId/{id}` · `GET /find/byUsername?username=X` · `PUT /update/{id}` · `DELETE /delete/{id}`
 
-### Tasks — `/api/v1/task`
-
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| `POST` | `/save` | Créer une tâche |
-| `GET` | `/find/all` | Lister toutes les tâches |
-| `GET` | `/find/all/{userId}` | Lister par utilisateur |
-| `GET` | `/find/byId/{id}` | Trouver par ID |
-| `PUT` | `/update/{id}` | Modifier |
-| `PATCH` | `/validate/{id}` | Marquer comme faite |
-| `DELETE` | `/delete/{id}` | Supprimer |
+### Tasks — `/task`
+`POST /save` · `GET /find/all` · `GET /find/all/{userId}` · `GET /find/byId/{id}` · `PUT /update/{id}` · `PATCH /validate/{id}` · `DELETE /delete/{id}`
 
 ---
 
 ## 🧪 Plan de test
 
-### Dev local
+### Local
 
 ```bash
-# 1. Tests unitaires back
-cd toDoApp && mvn test
+docker compose up --build
+curl http://localhost:8080/api/v1/actuator/health
 
-# 2. Test modulith structure
-cd toDoApp && mvn test -Dtest=ModulithStructureTests
-
-# 3. Test API via Swagger
-open http://localhost:8080/api/v1/swagger-ui.html
-
-# 4. Test PWA offline
-# → Ouvrir http://localhost:3000
-# → DevTools → Network → Offline
-# → Créer/modifier des tâches → vérifier qu'elles apparaissent
-# → Network → Online → vérifier la sync automatique
-
-# 5. Test installabilité PWA
-# → Chrome → barre d'adresse → icône install
-# → Ouvrir l'app installée, couper le réseau, tester
+# Test PWA offline (Chrome)
+# 1. Ouvrir http://localhost:3000
+# 2. F12 → Application → Service Workers → "Activated and running"
+# 3. Network → Offline → créer/modifier des tâches
+# 4. Network → Online → bannière verte + sync auto
 ```
 
-### Prod (Render + Netlify)
+### Prod
 
 ```bash
-# Vérifier le back en vie
 curl https://TON-BACK.onrender.com/api/v1/actuator/health
-
-# Vérifier les métriques
-curl https://TON-BACK.onrender.com/api/v1/actuator/prometheus
-
-# Tester un endpoint
-curl https://TON-BACK.onrender.com/api/v1/user/find/all
+curl https://TON-BACK.onrender.com/api/v1/actuator/prometheus | grep http_server
 ```
 
 ---
 
-## 📈 Axes d'amélioration pour applications scalables futures
+## 📈 Améliorations pour scalabilité future
 
-### Sécurité (priorité 1)
-- Implémenter **JWT** (Spring Security + `spring-boot-starter-oauth2-resource-server`)
-- Remplacer `USER_ID = 1` hardcodé par l'ID extrait du token JWT
-- Encoder les mots de passe avec **BCrypt** (`PasswordEncoder`)
-- Passer les secrets DB dans **HashiCorp Vault** ou **AWS Secrets Manager**
-
-### Architecture back
-- Migrer vers **Spring Modulith avec persistence JDBC** (remplacer les appels directs entre modules)
-- Ajouter une couche **validation Bean Validation** (`@Valid` sur tous les DTOs)
-- Implémenter **pagination** sur tous les endpoints `findAll`
-- Ajouter des **tests d'intégration** avec `@SpringBootTest` + Testcontainers
-
-### Architecture front
-- Remplacer `USER_ID = 1` par un **UserContext** réel alimenté par le JWT
-- Ajouter **React Query** (TanStack Query) pour la gestion du cache serveur
-- Implémenter un **système de notifications** (toast) pour remplacer les `alert()`
-- Ajouter des **tests** (Vitest + React Testing Library)
-
-### DevOps & scalabilité
-- Ajouter **Kubernetes** (Helm charts) pour déploiement multi-instances
-- Implémenter **Blue/Green deployment** sur Render
-- Ajouter **alerting Grafana** (AlertManager) sur les métriques critiques
-- Mettre en place **cache distribué Redis** pour les requêtes fréquentes
-- Ajouter **rate limiting** (Bucket4j ou Spring Cloud Gateway)
-- Implémenter **health checks** applicatifs personnalisés dans Actuator
+| Priorité | Item | Technologie |
+|----------|------|-------------|
+| 🔴 Critique | Auth JWT + BCrypt | spring-security-oauth2-resource-server |
+| 🔴 Critique | Migrations DB | Flyway |
+| 🟠 Important | Cache distribué | Redis |
+| 🟠 Important | Tests front | Vitest + React Testing Library |
+| 🟡 Moyen | Cache serveur front | TanStack Query |
+| 🟡 Moyen | TypeScript | Migration progressive |
+| 🟢 Nice | Bus de messages | Kafka |
+| 🟢 Nice | Alerting | Grafana AlertManager |
 
 ---
 
-## 🐛 Bugs connus et limitations actuelles
+## 🐛 Limitations connues
 
-| Item | Statut | Solution prévue |
-|------|--------|----------------|
-| `USER_ID = 1` hardcodé côté front | ⚠️ | Authentification JWT |
-| Delete offline non rejoué à la sync | ⚠️ | Table `pending_deletes` dans Dexie |
-| Pas de tests automatisés front | ⚠️ | Vitest + RTL |
-| Swagger désactivé en prod | ℹ️ | Normal, intentionnel |
-| `ddl-auto: update` en prod | ⚠️ | Migrer vers Flyway ou Liquibase |
-
----
-
-## 🤝 Contribuer
-
-```bash
-# Cloner
-git clone https://github.com/TON_USERNAME/todo_pwa.git
-
-# Créer une branche
-git checkout -b feat/ma-feature
-
-# Développer, committer
-git commit -m "feat: description claire"
-
-# Push et PR → la CI se déclenche automatiquement
-git push origin feat/ma-feature
-```
+| Item | Solution prévue |
+|------|----------------|
+| `USER_ID = 1` hardcodé | JWT + UserContext |
+| Mots de passe en clair | BCrypt |
+| Delete offline non rejoué | Table `pending_deletes` Dexie |
+| `ddl-auto: update` en prod | Flyway |
+| DB Render expire 30j | Migrer vers Neon |
 
 ---
 
 ## 📄 Licence
 
-MIT — libre d'utilisation, modification et distribution.
+MIT
