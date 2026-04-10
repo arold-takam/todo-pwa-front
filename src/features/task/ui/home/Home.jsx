@@ -58,6 +58,17 @@ export default function Home() {
 			)}
 			<header>
 				<Link to="/" className="homeLink">ToDo PWA</Link>
+				<Link to="/users" className="usersLink" style={{
+					fontSize: '0.8rem',
+					color: 'white',
+					opacity: 0.8,
+					textDecoration: 'none',
+					padding: '0.3rem 0.7rem',
+					border: '1px solid rgba(255,255,255,0.4)',
+					borderRadius: '6px'
+				}}>
+					Utilisateurs
+				</Link>
 				<img src={userProfile} alt="User Profile" className="profilePic" />
 			</header>
 			<section className="manageZone">

@@ -2,7 +2,7 @@
 // Rôle : fournir les données et actions à toute l'app
 // Écoute le signal 'app:sync-requested' pour déclencher la sync + rechargement UI
 
-import { createContext, useContext, useEffect } from 'react';
+import { createContext, useContext, useEffect, useRef } from 'react';
 import { useTasks, syncPendingTasks } from '../features/task/application/useTasks.js';
 
 const TaskContext = createContext();
@@ -10,19 +10,32 @@ const TaskContext = createContext();
 export function TaskProvider({ children }) {
     const taskValues = useTasks();
 
+    // On utilise un ref pour avoir accès aux setters les plus récents
+    // sans recréer le listener à chaque render
+    const settersRef = useRef({
+        setTasks: taskValues.setTasks,
+        setLoading: taskValues.setLoading,
+        setError: taskValues.setError,
+    });
+
+    useEffect(() => {
+        settersRef.current = {
+            setTasks: taskValues.setTasks,
+            setLoading: taskValues.setLoading,
+            setError: taskValues.setError,
+        };
+    });
+
     useEffect(() => {
         const handleSyncRequested = async () => {
-            console.log('🔄 Sync demandée depuis le contexte');
-            await syncPendingTasks(
-                taskValues.setTasks,
-                taskValues.setLoading,
-                taskValues.setError
-            );
+            console.log('[TaskContext] 🔄 Sync demandée');
+            const { setTasks, setLoading, setError } = settersRef.current;
+            await syncPendingTasks(setTasks, setLoading, setError);
         };
 
         window.addEventListener('app:sync-requested', handleSyncRequested);
         return () => window.removeEventListener('app:sync-requested', handleSyncRequested);
-    }, [taskValues.setTasks, taskValues.setLoading, taskValues.setError]);
+    }, []); // ← tableau vide : enregistré une seule fois
 
     return (
         <TaskContext.Provider value={taskValues}>
