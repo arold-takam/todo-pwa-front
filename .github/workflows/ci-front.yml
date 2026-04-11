@@ -42,7 +42,6 @@ jobs:
           VITE_API_BASE_URL: /api/v1
 
       - name: SonarQube analysis
-        if: ${{ secrets.SONAR_HOST_URL != '' && secrets.SONAR_TOKEN_FRONT != '' }}
         continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v2
         env:
