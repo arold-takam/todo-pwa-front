@@ -8,7 +8,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# ARG + ENV AVANT le build pour que Vite les voie
+# ARG injecté par docker-compose (local) ou la CI (prod)
+# - Docker local     : /api/v1 (proxy nginx vers le back)
+# - Netlify (prod)   : non utilisé (Netlify utilise .env.production directement)
+# - Docker Hub (CI)  : /api/v1 (image générique, nginx proxifie)
 ARG VITE_API_BASE_URL=/api/v1
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
