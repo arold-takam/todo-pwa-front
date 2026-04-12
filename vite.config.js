@@ -1,26 +1,27 @@
+// vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-    // ← build.outDir ici, PAS dans VitePWA
     build: {
         outDir: 'dist',
     },
 
+    // IMPORTANT : pas de server.proxy ici — Netlify est un CDN statique,
+    // il ne peut pas proxifier. Le front appelle directement l'URL Render.
+    // Le proxy nginx est uniquement utile pour le docker-compose local.
+
     plugins: [
         react(),
         VitePWA({
-            // Le SW se met à jour automatiquement sans demander à l'utilisateur
             registerType: 'autoUpdate',
 
-            // Active le SW même en dev (utile pour tester l'offline)
             devOptions: {
                 enabled: true,
                 type: 'module',
             },
 
-            // Assets à précacher (shell de l'app)
             includeAssets: [
                 'favicon.ico',
                 'logo.png',
@@ -28,7 +29,6 @@ export default defineConfig({
                 'apple-touch-icon.png',
             ],
 
-            // Manifest Web App (installabilité PWA)
             manifest: {
                 name: 'ToDo PWA - TeckIt',
                 short_name: 'ToDoPWA',
@@ -55,46 +55,37 @@ export default defineConfig({
                 ],
             },
 
-            // Configuration Workbox (Service Worker)
             workbox: {
-                // Précache tous les assets compilés
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}'],
-
-                // SPA : toute navigation non trouvée → index.html
-                // Indispensable pour que /add/task et /update/task fonctionnent
-                // après installation en mode standalone
                 navigateFallback: 'index.html',
 
-                // Exclure les requêtes API du navigateFallback
-                navigateFallbackDenylist: [/^\/api\//],
+                // Exclure les appels vers le back Render du navigateFallback
+                navigateFallbackDenylist: [
+                    /^\/api\//,
+                    /onrender\.com/,
+                ],
 
-                // Purger les caches des anciennes versions du SW
                 cleanupOutdatedCaches: true,
-
-                // Prendre le contrôle immédiatement sans attendre le prochain rechargement
                 skipWaiting: true,
                 clientsClaim: true,
 
-                // Stratégies de cache par type de ressource
                 runtimeCaching: [
                     {
-                        // Requêtes API → NetworkFirst avec fallback cache
-                        // Fonctionne pour : /api/v1/... (Docker local)
-                        // et https://mon-back.onrender.com/api/v1/... (prod)
-                        urlPattern: ({ url, request }) => {
+                        // Requêtes API vers Render (prod) ou localhost (dev)
+                        // NetworkFirst : essaie le réseau, fallback sur le cache
+                        urlPattern: ({ url }) => {
                             return (
                                 url.pathname.startsWith('/api/v1') ||
-                                url.origin.includes('onrender.com') ||
-                                request.destination === 'fetch' && url.pathname.startsWith('/api')
+                                url.hostname.includes('onrender.com')
                             );
                         },
                         handler: 'NetworkFirst',
                         options: {
                             cacheName: 'api-cache-v1',
-                            networkTimeoutSeconds: 8,
+                            networkTimeoutSeconds: 10,
                             expiration: {
                                 maxEntries: 100,
-                                maxAgeSeconds: 24 * 60 * 60, // 24h
+                                maxAgeSeconds: 24 * 60 * 60,
                             },
                             cacheableResponse: {
                                 statuses: [0, 200],
@@ -102,19 +93,17 @@ export default defineConfig({
                         },
                     },
                     {
-                        // Images → CacheFirst (rarement changées)
                         urlPattern: ({ request }) => request.destination === 'image',
                         handler: 'CacheFirst',
                         options: {
                             cacheName: 'images-cache-v1',
                             expiration: {
                                 maxEntries: 50,
-                                maxAgeSeconds: 7 * 24 * 60 * 60, // 7 jours
+                                maxAgeSeconds: 7 * 24 * 60 * 60,
                             },
                         },
                     },
                     {
-                        // Polices / fonts → CacheFirst
                         urlPattern: ({ request }) =>
                             request.destination === 'font' ||
                             request.destination === 'style',
